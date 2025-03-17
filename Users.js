@@ -1,48 +1,48 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
-const bcrypt = require('bcrypt'); // Use bcrypt, not bcrypt-nodejs
+const bcrypt = require('bcrypt');
 
-// No need for mongoose.Promise = global.Promise;
-
+// Connect to MongoDB using the connection string from .env
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.DB); // useNewUrlParser and useUnifiedTopology are no longer needed
-    console.log("Connected to MongoDB");
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("Connected to MongoDB (Users)");
   } catch (error) {
-    console.error("MongoDB connection error:", error); // Log the actual error object
-    process.exit(1); // Exit the process if the connection fails (optional, but good practice)
+    console.error("MongoDB connection error (Users):", error);
+    process.exit(1); // Exit if connection fails
   }
 };
 
 connectDB();
 
-
+// Define the User schema
 const UserSchema = new Schema({
-    name: String,
-    username: { type: String, required: true, index: { unique: true } },
-    password: { type: String, required: true, select: false }
+  name: String,
+  username: { type: String, required: true, index: { unique: true } },
+  password: { type: String, required: true, select: false } // select: false hides the password by default
 });
 
-UserSchema.pre('save', async function(next) {  // Use async/await for cleaner code
-    const user = this;
+// Before saving, hash the password if it has been modified
+UserSchema.pre('save', async function(next) {
+  const user = this;
+  if (!user.isModified('password')) return next();
 
-    if (!user.isModified('password')) return next();
-
-    try {
-        const hash = await bcrypt.hash(user.password, 10); // 10 is the salt rounds (adjust as needed)
-        user.password = hash;
-        next();
-    } catch (err) {
-        return next(err);
-    }
+  try {
+    const hash = await bcrypt.hash(user.password, 10); 
+    user.password = hash;
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
 
-UserSchema.methods.comparePassword = async function(password) { // Use async/await
-    try {
-        return await bcrypt.compare(password, this.password);
-    } catch (err) {
-        return false; // Or handle the error as you see fit
-    }
+// Compare a candidate password with the hashed password
+UserSchema.methods.comparePassword = async function(password) {
+  try {
+    return await bcrypt.compare(password, this.password);
+  } catch (err) {
+    return false;
+  }
 };
 
 module.exports = mongoose.model('User', UserSchema);
